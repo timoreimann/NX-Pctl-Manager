@@ -40,7 +40,8 @@
             "set_all":  "Set daily limit (all days)…",
             "per_day":  "Per-day limits…",
             "remove":   "Remove play-time limit",
-            "diag":     "Dump current config → sd:/nx_pctl_probe.txt"
+            "start":    "Start Play Timer (debug)",
+            "diag":     "Dump current config → timestamped SD file"
         },
 
         "dialog": {
@@ -79,6 +80,8 @@
         "unlink_err":       "Could not unlink the companion app",
         "set_pin_ok":       "Parental control PIN updated.",
         "set_pin_err":      "Could not update the PIN",
-        "diag_saved":       "Dump saved to sd:/nx_pctl_probe.txt"
+        "diag_time_err":    "Could not create a timestamped dump filename; no action was performed.",
+        "diag_write_err":   "Could not write dump to {}",
+        "diag_saved":       "Dump saved to {}"
     }
 }

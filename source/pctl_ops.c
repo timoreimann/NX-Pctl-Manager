@@ -235,6 +235,13 @@ Result pctl_play_timer_clear(void)
     return pctl_play_timer_set_days(d);
 }
 
+Result pctl_play_timer_start(void)
+{
+    Result rc = pctl_ops_reinit();
+    if (R_FAILED(rc)) return rc;
+    return serviceDispatch(pctlGetServiceSession_Service(), 1451);   // StartPlayTimer
+}
+
 void pctl_play_timer_dump(char *buf, size_t bufsz)
 {
     if (bufsz == 0) return;
@@ -308,4 +315,3 @@ void pctl_play_timer_dump(char *buf, size_t bufsz)
       for (size_t i = 0; i < sizeof(b); i++) rep(&p, e, (b[i] >= '0' && b[i] <= '9') ? "## " : "%02X ", b[i]);
       rep(&p, e, "\n"); }
 }
-

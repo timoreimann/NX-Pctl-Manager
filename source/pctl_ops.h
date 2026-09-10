@@ -50,6 +50,10 @@ Result pctl_unlock_restriction_temporarily(void);
 const char *pctl_safety_level_name(u32 level);
 
 // ---- play timer ----
+// Starts the native play-timer countdown (cmd 1451). Diagnostic use only for now;
+// setting PlayTimerSettings does not call this automatically.
+Result pctl_play_timer_start(void);
+
 // Writes a multi-line read-only diagnostic report into buf: 1453/1455/1458/1454, the
 // raw 0x44-byte GetPlayTimerSettings (145601) + its u16[34]/decoded view, 1459
 // GetPlayTimerRemainingTimeDisplayInfo, and — for the temporary-unlock path — 1031

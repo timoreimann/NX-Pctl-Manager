@@ -2,6 +2,8 @@
 #include "activity/play_timer_activity.hpp"
 
 #include <cstdio>
+#include <ctime>
+#include <optional>
 #include <fmt/format.h>
 
 #include "action/pt_flow.hpp"
@@ -13,6 +15,32 @@ using namespace brls::literals;
 
 namespace
 {
+#ifdef PCTL_PROBE
+// Use the console's local clock so repeated dumps are kept separately on the SD.
+std::optional<std::string> probe_dump_path()
+{
+    char timestamp[32] = {};
+    std::time_t now = std::time(nullptr);
+    if (now == (std::time_t)-1) {
+        brls::Logger::error("Could not read the clock for the probe dump filename");
+        return std::nullopt;
+    }
+
+    std::tm* local = std::localtime(&now);
+    if (!local || !std::strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", local)) {
+        brls::Logger::error("Could not convert the clock for the probe dump filename");
+        return std::nullopt;
+    }
+
+    return fmt::format("/nx_pctl_probe_{}.txt", timestamp);
+}
+
+std::string display_probe_path(const std::string& path)
+{
+    return fmt::format("sd:{}", path);
+}
+#endif
+
 // If the seven days share one value, return that minute count; otherwise return
 // 60 as a sensible default for the numpad to land on. PT_DAY_NOLIMIT counts as
 // "no useful starting value" → fall back to 60.
@@ -77,16 +105,64 @@ void PlayTimerActivity::onContentAvailable()
     });
 
 #ifdef PCTL_PROBE
-    // PROBE build: surface the read-only "Dump current config" cell — same
-    // diagnostic as v2.0.0 PROBE=1. Writes a multi-line report to
-    // sd:/nx_pctl_probe.txt (PIN digits masked) and toasts the path.
-    this->pt_diag->setVisibility(brls::Visibility::VISIBLE);
-    this->pt_diag->registerClickAction([](brls::View*) {
+    // PROBE build: invoke StartPlayTimer (1451), then capture the existing
+    // read-only state dump so the before/after command behavior is observable.
+    this->pt_start->setVisibility(brls::Visibility::VISIBLE);
+    this->pt_start->registerClickAction([this](brls::View*) {
+        auto path = probe_dump_path();
+        if (!path) {
+            brls::Application::notify("nx_pctl/toast/diag_time_err"_i18n);
+            return true;
+        }
+
+        Result rc = pctl_play_timer_start();
+        brls::Logger::info("1451 StartPlayTimer returned 0x{:08X}", (unsigned)rc);
+
         static char buf[6144];
         pctl_play_timer_dump(buf, sizeof(buf));
-        FILE* f = std::fopen("/nx_pctl_probe.txt", "w");
-        if (f) { std::fputs(buf, f); std::fclose(f); }
-        brls::Application::notify("nx_pctl/toast/diag_saved"_i18n);
+        this->state_header->refresh();
+        FILE* f = std::fopen(path->c_str(), "w");
+        if (!f) {
+            brls::Logger::error("Could not write probe dump to {}", *path);
+            brls::Application::notify(fmt::format(
+                "1451 StartPlayTimer: rc=0x{:08X}; could not write dump to {}",
+                (unsigned)rc, display_probe_path(*path)));
+            return true;
+        }
+        std::fprintf(f, "1451 StartPlayTimer: rc=0x%08X\n\n", (unsigned)rc);
+        std::fputs(buf, f);
+        std::fclose(f);
+
+        brls::Application::notify(fmt::format(
+            "1451 StartPlayTimer: rc=0x{:08X}; dump saved to {}",
+            (unsigned)rc, display_probe_path(*path)));
+        return true;
+    });
+
+    // PROBE build: surface the read-only "Dump current config" cell — same
+    // diagnostic as v2.0.0 PROBE=1. Writes a multi-line report to
+    // a timestamped file on the SD root (PIN digits masked) and toasts the path.
+    this->pt_diag->setVisibility(brls::Visibility::VISIBLE);
+    this->pt_diag->registerClickAction([](brls::View*) {
+        auto path = probe_dump_path();
+        if (!path) {
+            brls::Application::notify("nx_pctl/toast/diag_time_err"_i18n);
+            return true;
+        }
+
+        static char buf[6144];
+        pctl_play_timer_dump(buf, sizeof(buf));
+        FILE* f = std::fopen(path->c_str(), "w");
+        if (!f) {
+            brls::Logger::error("Could not write probe dump to {}", *path);
+            brls::Application::notify(fmt::format(
+                "nx_pctl/toast/diag_write_err"_i18n, display_probe_path(*path)));
+            return true;
+        }
+        std::fputs(buf, f);
+        std::fclose(f);
+        brls::Application::notify(fmt::format(
+            "nx_pctl/toast/diag_saved"_i18n, display_probe_path(*path)));
         return true;
     });
 #endif
