@@ -266,6 +266,10 @@ void pctl_play_timer_dump(char *buf, size_t bufsz)
       if (R_SUCCEEDED(r) && v) rep(&p, e, "  (~%llu min if ns)", (unsigned long long)(v / 60000000000ULL));
       rep(&p, e, "\n"); }
 
+    { u64 v = 0; Result r = serviceDispatchOut(srv, 1952, v);
+      rep(&p, e, "1952 GetPlayTimerSpentTimeForTest: rc=0x%08X  raw=0x%016llX (%llu)", (unsigned)r, (unsigned long long)v, (unsigned long long)v);
+      if (R_SUCCEEDED(r)) rep(&p, e, "  (if ns: %llu s / %llu min)", (unsigned long long)(v / 1000000000ULL), (unsigned long long)(v / 60000000000ULL));
+      rep(&p, e, "\n"); }
     // GetPlayTimerSettings (145601) — the one we care about. 0x44 bytes, buffer prefilled 0xCC.
     u16  cfg[34];
     bool cfg_ok = false;
