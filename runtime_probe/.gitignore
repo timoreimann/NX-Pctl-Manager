@@ -1,0 +1,5 @@
+/build/
+/out/
+/nx_pctl_runtime_probe.npdm
+/nx_pctl_runtime_probe.nso
+/nx_pctl_runtime_probe.nsp
