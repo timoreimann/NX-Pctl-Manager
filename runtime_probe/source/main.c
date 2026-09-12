@@ -165,13 +165,17 @@ static void write_sample(FILE *log, u64 sequence)
     if (R_SUCCEEDED(pctl_rc)) {
         Service *service = pctlGetServiceSession_Service();
         if (application_present && !start_called_for_interval) {
+            u8 input1501 = 1;
+            Result rc1501 = serviceDispatchIn(service, 1501, input1501);
             Result rc1451 = serviceDispatch(service, 1451);
             start_called_for_interval = true;
             fprintf(log,
-                "event=start_play_timer time=%s sample=%llu "
-                "application_pid=0x%016llX 1451_rc=0x%08X\n",
+                "event=set_timer_event_enabled_then_start time=%s sample=%llu "
+                "application_pid=0x%016llX 1501_input=0x%02X "
+                "1501_rc=0x%08X 1451_rc=0x%08X\n",
                 timestamp, (unsigned long long)sequence,
-                (unsigned long long)application_pid, (unsigned)rc1451);
+                (unsigned long long)application_pid, (unsigned)input1501,
+                (unsigned)rc1501, (unsigned)rc1451);
         }
         rc1453 = serviceDispatchOut(service, 1453, enabled);
         rc1454 = serviceDispatchOut(service, 1454, remaining);
@@ -213,7 +217,7 @@ int main(void)
     u32 version = hosversionGet();
     fprintf(log,
         "nx_pctl_runtime_probe program_id=0x%016llX hos=%u.%u.%u "
-        "poll_interval_seconds=5 experiment=start_play_timer_long_lived_session "
+        "poll_interval_seconds=5 experiment=set_timer_event_enabled_then_start "
         "application_process_present_does_not_prove_visual_foreground=true\n",
         (unsigned long long)PROGRAM_ID,
         HOSVER_MAJOR(version), HOSVER_MINOR(version), HOSVER_MICRO(version));

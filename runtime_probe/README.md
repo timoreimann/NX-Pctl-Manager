@@ -1,9 +1,10 @@
 # Runtime Probe
 
-This standalone Atmosphère sysmodule tests whether `StartPlayTimer` requires a
-long-lived pctl session. Once per application-process interval, it invokes
-command 1451 and retains that session while polling commands 1453, 1454, 1455,
-and 1952. It never invokes 1452, 1501, or a settings command.
+This standalone Atmosphère sysmodule tests whether `SetTimerEventEnabled(true)`
+arms timer accounting. Once per application-process interval, it invokes
+command 1501 with an exact one-byte value of 1, then command 1451, and retains
+that session while polling commands 1453, 1454, 1455, and 1952. It never invokes
+1452 or a settings command.
 
 ## Build and artifacts
 
@@ -39,7 +40,7 @@ The NPDM grants SD-card access plus these client services only:
 - `fsp-srv` for the log file.
 - `set:sys` to initialize libnx's HOS-version routing.
 - `time:u` for log timestamps.
-- `pctl:s` for command 1451 and the four read-only timer queries.
+- `pctl:s` for commands 1501, 1451, and the four read-only timer queries.
 - `pgl` for `pglGetApplicationProcessId()`.
 
 The `pgl` result proves only that an application process exists; it does not
