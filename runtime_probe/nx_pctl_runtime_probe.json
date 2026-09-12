@@ -41,6 +41,8 @@
         {
             "type": "syscalls",
             "value": {
+                "svcSetMemoryPermission": "0x02",
+                "svcSetMemoryAttribute": "0x03",
                 "svcQueryMemory": "0x06",
                 "svcExitProcess": "0x07",
                 "svcExitThread": "0x0a",
