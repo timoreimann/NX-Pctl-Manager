@@ -1,11 +1,9 @@
 # Runtime Probe
 
-This standalone Atmosphère sysmodule samples parental-control timer state while
-an application can remain running. It does not link the Pctl Manager UI or any
-of its write paths. After libnx's standard service/session initialization, its
-only operational `pctl` requests are commands 1453, 1454, 1455, and 1952, all
-with output-only IPC payloads. The initialization handshake creates and
-initializes a caller session; it does not write timer settings or timer state.
+This standalone Atmosphère sysmodule tests whether `StartPlayTimer` requires a
+long-lived pctl session. Once per application-process interval, it invokes
+command 1451 and retains that session while polling commands 1453, 1454, 1455,
+and 1952. It never invokes 1452, 1501, or a settings command.
 
 ## Build and artifacts
 
@@ -41,12 +39,12 @@ The NPDM grants SD-card access plus these client services only:
 - `fsp-srv` for the log file.
 - `set:sys` to initialize libnx's HOS-version routing.
 - `time:u` for log timestamps.
-- `pctl:s` for the four read-only timer queries.
+- `pctl:s` for command 1451 and the four read-only timer queries.
 - `pgl` for `pglGetApplicationProcessId()`.
 
 The `pgl` result proves only that an application process exists; it does not
 prove that the application owns visual foreground while HOME is open. Keep the
-game visibly foreground during the baseline test.
+game visibly foreground during the experiment.
 
 The build uses current devkitPro (`libnx 4.12.0-1`, `devkitA64 r29.2-1`). On HOS
 22.5, libnx routes `pgl` through TIPC. The principal hardware uncertainty is

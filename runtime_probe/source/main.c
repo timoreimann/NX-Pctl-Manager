@@ -1,4 +1,4 @@
-// NX-Pctl-Manager — read-only play-timer runtime probe.
+// NX-Pctl-Manager — long-lived-session play-timer runtime probe.
 // Copyright (C) 2026 Timo Reimann. GPL-3.0-or-later; see repository LICENSE.
 #include <switch.h>
 
@@ -17,6 +17,7 @@ u32 __nx_fs_num_sessions = 1;
 static u8 inner_heap[INNER_HEAP_SIZE];
 static bool pctl_ready;
 static bool pgl_ready;
+static bool start_called_for_interval;
 
 void __libnx_initheap(void)
 {
@@ -148,6 +149,8 @@ static void write_sample(FILE *log, u64 sequence)
     Result pgl_rc = ensure_pgl();
     if (R_SUCCEEDED(pgl_rc))
         pgl_rc = pglGetApplicationProcessId(&application_pid);
+    bool application_present = R_SUCCEEDED(pgl_rc) && application_pid != 0;
+    if (!application_present) start_called_for_interval = false;
 
     bool enabled = false;
     bool restricted = false;
@@ -161,6 +164,15 @@ static void write_sample(FILE *log, u64 sequence)
 
     if (R_SUCCEEDED(pctl_rc)) {
         Service *service = pctlGetServiceSession_Service();
+        if (application_present && !start_called_for_interval) {
+            Result rc1451 = serviceDispatch(service, 1451);
+            start_called_for_interval = true;
+            fprintf(log,
+                "event=start_play_timer time=%s sample=%llu "
+                "application_pid=0x%016llX 1451_rc=0x%08X\n",
+                timestamp, (unsigned long long)sequence,
+                (unsigned long long)application_pid, (unsigned)rc1451);
+        }
         rc1453 = serviceDispatchOut(service, 1453, enabled);
         rc1454 = serviceDispatchOut(service, 1454, remaining);
         rc1455 = serviceDispatchOut(service, 1455, restricted);
@@ -178,7 +190,7 @@ static void write_sample(FILE *log, u64 sequence)
         (unsigned long long)sequence, timestamp, (unsigned)time_rc,
         additional.timezoneName, additional.offset,
         (unsigned)pgl_rc,
-        (unsigned)(R_SUCCEEDED(pgl_rc) && application_pid != 0),
+        (unsigned)application_present,
         (unsigned long long)application_pid, (unsigned)pctl_rc,
         (unsigned)rc1453, (unsigned)enabled,
         (unsigned)rc1454, (unsigned long long)remaining,
@@ -201,7 +213,7 @@ int main(void)
     u32 version = hosversionGet();
     fprintf(log,
         "nx_pctl_runtime_probe program_id=0x%016llX hos=%u.%u.%u "
-        "poll_interval_seconds=5 pctl_mode=read_only "
+        "poll_interval_seconds=5 experiment=start_play_timer_long_lived_session "
         "application_process_present_does_not_prove_visual_foreground=true\n",
         (unsigned long long)PROGRAM_ID,
         HOSVER_MAJOR(version), HOSVER_MINOR(version), HOSVER_MICRO(version));
