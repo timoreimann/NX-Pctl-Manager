@@ -9,7 +9,7 @@
 
 #define INNER_HEAP_SIZE 0x20000
 #define POLL_INTERVAL_NS 5000000000LL
-#define PROGRAM_ID UINT64_C(0x0100000000F04354)
+#define PROGRAM_ID UINT64_C(0x4200000000F04354)
 
 u32 __nx_applet_type = AppletType_None;
 u32 __nx_fs_num_sessions = 1;

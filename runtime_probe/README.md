@@ -13,25 +13,25 @@ Run `./run.sh` in this directory. It uses `devkitpro/devkita64` and produces:
 
 - `nx_pctl_runtime_probe.nsp` — raw ExeFS NSP.
 - `nx_pctl_runtime_probe.zip` — ready-to-copy SD-card layout.
-- `out/atmosphere/contents/0100000000F04354/exefs.nsp` — packaged NSP.
+- `out/atmosphere/contents/4200000000F04354/exefs.nsp` — packaged NSP.
 
 ## Install, start, and remove
 
 Copy the ZIP's `atmosphere/` directory to the SD-card root. The final layout is:
 
 ```text
-atmosphere/contents/0100000000F04354/exefs.nsp
-atmosphere/contents/0100000000F04354/flags/boot2.flag
+atmosphere/contents/4200000000F04354/exefs.nsp
+atmosphere/contents/4200000000F04354/flags/boot2.flag
 ```
 
-Atmosphère launches program ID `0100000000F04354` during `boot2`, so reboot
+Atmosphère launches program ID `4200000000F04354` during `boot2`, so reboot
 after copying it. Samples are appended every five seconds to
 `sdmc:/switch/nx_pctl_runtime_<timestamp>.log` and flushed immediately.
 `remaining_raw` and `spent_raw` preserve the returned 64-bit values; the probe
 does not assume a time unit.
 
 To disable automatic startup, remove or rename `boot2.flag`, then reboot. To
-uninstall, remove `atmosphere/contents/0100000000F04354/` and reboot. There is
+uninstall, remove `atmosphere/contents/4200000000F04354/` and reboot. There is
 no live-unload control and no Tesla/Ultrahand dependency.
 
 ## Permissions and compatibility

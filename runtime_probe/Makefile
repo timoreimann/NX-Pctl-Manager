@@ -6,7 +6,7 @@ TOPDIR ?= $(CURDIR)
 include $(DEVKITPRO)/libnx/switch_rules
 
 TARGET      := nx_pctl_runtime_probe
-PROGRAM_ID  := 0100000000F04354
+PROGRAM_ID  := 4200000000F04354
 BUILD       := build
 SOURCES     := source
 INCLUDES    := include
