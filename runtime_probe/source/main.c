@@ -206,6 +206,31 @@ static void write_settings_snapshot(FILE *log, const char *timestamp, u64 sequen
     fflush(log);
 }
 
+static void write_pairing_snapshot(FILE *log, const char *timestamp, u64 sequence,
+    u64 application_pid, Result pctl_rc, const char *reason)
+{
+    bool pairing_active = false;
+    u64 last_updated = 0;
+    Result rc1403 = pctl_rc;
+    Result rc1406 = pctl_rc;
+    if (R_SUCCEEDED(pctl_rc)) {
+        rc1403 = pctlIsPairingActive(&pairing_active);
+        rc1406 = serviceDispatchOut(pctlGetServiceSession_Service(), 1406, last_updated);
+    }
+
+    fprintf(log, "event=pairing_state reason=%s time=%s sample=%llu "
+        "application_pid=0x%016llX 1403_rc=0x%08X pairing_active=",
+        reason, timestamp, (unsigned long long)sequence,
+        (unsigned long long)application_pid, (unsigned)rc1403);
+    if (R_SUCCEEDED(rc1403)) fprintf(log, "%u", (unsigned)pairing_active);
+    else fprintf(log, "unavailable");
+    fprintf(log, " 1406_rc=0x%08X last_updated_posix_raw=", (unsigned)rc1406);
+    if (R_SUCCEEDED(rc1406)) fprintf(log, "%llu", (unsigned long long)last_updated);
+    else fprintf(log, "unavailable");
+    fprintf(log, "\n");
+    fflush(log);
+}
+
 static void write_sample(FILE *log, u64 sequence)
 {
     char timestamp[32] = "unavailable";
@@ -236,9 +261,12 @@ static void write_sample(FILE *log, u64 sequence)
         rc1455 = serviceDispatchOut(service, 1455, restricted);
         rc1952 = serviceDispatchOut(service, 1952, spent);
     }
-    if (sequence == 0 || (application_present && !previous_application_present))
+    if (sequence == 0 || (application_present && !previous_application_present)) {
+        const char *reason = sequence == 0 ? "startup" : "application_started";
         write_settings_snapshot(log, timestamp, sequence, application_pid, pctl_rc,
-            sequence == 0 ? "startup" : "application_started");
+            reason);
+        write_pairing_snapshot(log, timestamp, sequence, application_pid, pctl_rc, reason);
+    }
     if (R_SUCCEEDED(pgl_rc) || pgl_rc == 0x000006E4)
         previous_application_present = application_present;
 
@@ -276,7 +304,7 @@ int main(void)
     u32 version = hosversionGet();
     fprintf(log,
         "nx_pctl_runtime_probe program_id=0x%016llX hos=%u.%u.%u "
-        "poll_interval_seconds=5 experiment=read_play_timer_settings_runtime "
+        "poll_interval_seconds=5 experiment=read_pairing_and_play_timer_state "
         "application_process_present_does_not_prove_visual_foreground=true\n",
         (unsigned long long)PROGRAM_ID,
         HOSVER_MAJOR(version), HOSVER_MINOR(version), HOSVER_MICRO(version));
