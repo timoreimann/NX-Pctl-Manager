@@ -1,4 +1,4 @@
-// NX-Pctl-Manager — long-lived-session play-timer runtime probe.
+// NX-Pctl-Manager — read-only play-timer runtime probe.
 // Copyright (C) 2026 Timo Reimann. GPL-3.0-or-later; see repository LICENSE.
 #include <switch.h>
 
@@ -17,7 +17,7 @@ u32 __nx_fs_num_sessions = 1;
 static u8 inner_heap[INNER_HEAP_SIZE];
 static bool pctl_ready;
 static bool pgl_ready;
-static bool start_called_for_interval;
+static bool previous_application_present;
 
 void __libnx_initheap(void)
 {
@@ -138,6 +138,74 @@ static Result ensure_pgl(void)
     return rc;
 }
 
+static void write_settings_snapshot(FILE *log, const char *timestamp, u64 sequence,
+    u64 application_pid, Result pctl_rc, const char *reason)
+{
+    static const u8 reference_header[12] = {
+        0x00, 0x01, 0x01, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    };
+    static const u8 reference_day[8] = {0x00, 0x00, 0x00, 0x06, 0x00, 0x01, 0x02, 0x00};
+    u8 settings[0x44] = {0};
+    Result rc = pctl_rc;
+    if (R_SUCCEEDED(rc))
+        rc = serviceDispatchOut(pctlGetServiceSession_Service(), 145601, settings);
+
+    fprintf(log, "event=play_timer_settings reason=%s time=%s sample=%llu "
+        "application_pid=0x%016llX 145601_rc=0x%08X blob=",
+        reason, timestamp, (unsigned long long)sequence,
+        (unsigned long long)application_pid, (unsigned)rc);
+    if (R_FAILED(rc)) {
+        fprintf(log, "unavailable\n");
+        fflush(log);
+        return;
+    }
+    for (size_t i = 0; i < sizeof(settings); i++) fprintf(log, "%02X", settings[i]);
+    fprintf(log, "\n");
+
+    fprintf(log, "settings_header sample=%llu "
+        "offset_00=0x%02X candidate_schedule_mode=weakly_inferred "
+        "offset_01=0x%02X candidate_restriction_mode=weakly_inferred "
+        "offset_02=0x%02X candidate_validity_enable=weakly_inferred "
+        "offset_03=0x%02X interpretation=unknown "
+        "offset_0A_0B=%02X%02X interpretation=unknown\n",
+        (unsigned long long)sequence, settings[0], settings[1], settings[2],
+        settings[3], settings[0x0A], settings[0x0B]);
+    fprintf(log, "settings_default_daily sample=%llu offset=0x04 raw=",
+        (unsigned long long)sequence);
+    for (size_t i = 4; i < 10; i++) fprintf(log, "%02X", settings[i]);
+    fprintf(log, " raw_bytes=known candidate_default_daily_regulation=weakly_inferred\n");
+
+    for (unsigned d = 0; d < 7; d++) {
+        size_t b = 0x0C + 8 * d;
+        unsigned b6 = settings[b + 6] | ((unsigned)settings[b + 7] << 8);
+        fprintf(log, "settings_day sample=%llu day_index=%u offset=0x%02X "
+            "b0_1_raw=%02X%02X candidate_bedtime_stop=weakly_inferred "
+            "b2_3_raw=%02X%02X candidate_morning_start=strongly_inferred "
+            "b4=0x%02X candidate_bedtime_enabled=strongly_inferred "
+            "b5=0x%02X candidate_limit_enabled=strongly_inferred "
+            "b6_7_u16le=%u candidate_limit_minutes=strongly_inferred\n",
+            (unsigned long long)sequence, d, (unsigned)b,
+            settings[b], settings[b + 1], settings[b + 2], settings[b + 3],
+            settings[b + 4], settings[b + 5], b6);
+    }
+
+    unsigned difference_count = 0;
+    for (size_t i = 0; i < sizeof(settings); i++) {
+        u8 expected = i < sizeof(reference_header) ? reference_header[i] :
+            reference_day[(i - sizeof(reference_header)) % sizeof(reference_day)];
+        if (settings[i] != expected) {
+            fprintf(log, "settings_reference_diff sample=%llu offset=0x%02X "
+                "expected=0x%02X actual=0x%02X\n",
+                (unsigned long long)sequence, (unsigned)i, expected, settings[i]);
+            difference_count++;
+        }
+    }
+    fprintf(log, "settings_reference_summary sample=%llu difference_count=%u\n",
+        (unsigned long long)sequence, difference_count);
+    fflush(log);
+}
+
 static void write_sample(FILE *log, u64 sequence)
 {
     char timestamp[32] = "unavailable";
@@ -150,7 +218,6 @@ static void write_sample(FILE *log, u64 sequence)
     if (R_SUCCEEDED(pgl_rc))
         pgl_rc = pglGetApplicationProcessId(&application_pid);
     bool application_present = R_SUCCEEDED(pgl_rc) && application_pid != 0;
-    if (!application_present) start_called_for_interval = false;
 
     bool enabled = false;
     bool restricted = false;
@@ -164,24 +231,16 @@ static void write_sample(FILE *log, u64 sequence)
 
     if (R_SUCCEEDED(pctl_rc)) {
         Service *service = pctlGetServiceSession_Service();
-        if (application_present && !start_called_for_interval) {
-            u8 input1501 = 1;
-            Result rc1501 = serviceDispatchIn(service, 1501, input1501);
-            Result rc1451 = serviceDispatch(service, 1451);
-            start_called_for_interval = true;
-            fprintf(log,
-                "event=set_timer_event_enabled_then_start time=%s sample=%llu "
-                "application_pid=0x%016llX 1501_input=0x%02X "
-                "1501_rc=0x%08X 1451_rc=0x%08X\n",
-                timestamp, (unsigned long long)sequence,
-                (unsigned long long)application_pid, (unsigned)input1501,
-                (unsigned)rc1501, (unsigned)rc1451);
-        }
         rc1453 = serviceDispatchOut(service, 1453, enabled);
         rc1454 = serviceDispatchOut(service, 1454, remaining);
         rc1455 = serviceDispatchOut(service, 1455, restricted);
         rc1952 = serviceDispatchOut(service, 1952, spent);
     }
+    if (sequence == 0 || (application_present && !previous_application_present))
+        write_settings_snapshot(log, timestamp, sequence, application_pid, pctl_rc,
+            sequence == 0 ? "startup" : "application_started");
+    if (R_SUCCEEDED(pgl_rc) || pgl_rc == 0x000006E4)
+        previous_application_present = application_present;
 
     fprintf(log,
         "sample=%llu time=%s time_rc=0x%08X tz=%.8s utc_offset=%d "
@@ -217,7 +276,7 @@ int main(void)
     u32 version = hosversionGet();
     fprintf(log,
         "nx_pctl_runtime_probe program_id=0x%016llX hos=%u.%u.%u "
-        "poll_interval_seconds=5 experiment=set_timer_event_enabled_then_start "
+        "poll_interval_seconds=5 experiment=read_play_timer_settings_runtime "
         "application_process_present_does_not_prove_visual_foreground=true\n",
         (unsigned long long)PROGRAM_ID,
         HOSVER_MAJOR(version), HOSVER_MINOR(version), HOSVER_MICRO(version));
