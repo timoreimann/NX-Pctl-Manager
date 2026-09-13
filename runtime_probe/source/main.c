@@ -10,6 +10,7 @@
 #define INNER_HEAP_SIZE 0x20000
 #define POLL_INTERVAL_NS 5000000000LL
 #define PROGRAM_ID UINT64_C(0x4200000000F04354)
+#define PGL_RESULT_NO_APPLICATION UINT32_C(0x000006E4)
 
 u32 __nx_applet_type = AppletType_None;
 u32 __nx_fs_num_sessions = 1;
@@ -267,7 +268,7 @@ static void write_sample(FILE *log, u64 sequence)
             reason);
         write_pairing_snapshot(log, timestamp, sequence, application_pid, pctl_rc, reason);
     }
-    if (R_SUCCEEDED(pgl_rc) || pgl_rc == 0x000006E4)
+    if (R_SUCCEEDED(pgl_rc) || pgl_rc == PGL_RESULT_NO_APPLICATION)
         previous_application_present = application_present;
 
     fprintf(log,
